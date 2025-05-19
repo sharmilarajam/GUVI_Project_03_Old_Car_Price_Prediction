@@ -1,125 +1,48 @@
 import streamlit as st
 import pandas as pd
-import mysql.connector
-from mysql.connector import Error
+import numpy as np
+import pickle
 
-# MySQL DB connection details
-DB_HOST = "localhost"
-DB_PORT = "3306"
-DB_USER = "root"
-DB_PASSWORD = "123456"
-DB_NAME = "car"
+# ------------------- Load the Trained Model -------------------
+with open("car_price_model.pkl", "rb") as f:
+    model = pickle.load(f)
 
-# Connect to MySQL database
-def create_connection():
-    try:
-        connection = mysql.connector.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            database=DB_NAME
-        )
-        return connection
-    except Error as e:
-        st.error(f"Error connecting to database: {e}")
-        return None
+# ------------------- Streamlit App UI -------------------
+st.title("Used Car Price Prediction")
 
-# Fetch distinct values from the database for the dropdowns
-def fetch_dropdown_options():
-    connection = create_connection()
-    if connection:
-        try:
-            cursor = connection.cursor(dictionary=True)
-            # Query to fetch distinct values for dropdowns
-            cursor.execute("SELECT DISTINCT transmission FROM price_prediction;")
-            transmissions = cursor.fetchall()
+with st.form("car_input_form"):
+    transmission = st.selectbox("Transmission (0=Manual, 1=Automatic)", [0, 1])
+    model_code = st.number_input("Model (numeric code)", min_value=0)
+    year = st.number_input("Year of Manufacture", min_value=1900, max_value=2025, value=2015)
+    city = st.selectbox("City (numeric code)", [0, 1, 2, 3, 4, 5])
+    ft = st.number_input("ft (feature)", min_value=0)
+    bt = st.number_input("bt (feature)", min_value=0)
+    ownership = st.selectbox("Ownership (1=1st, 2=2nd, etc.)", [1, 2, 3, 4])
+    kms_driven = st.number_input("Kms Driven", min_value=0)
+    engine_type = st.number_input("Engine Type (numeric code)", min_value=0)
 
-            cursor.execute("SELECT DISTINCT model FROM price_prediction;")
-            models = cursor.fetchall()
+    submitted = st.form_submit_button("Submit")
 
-            cursor.execute("SELECT DISTINCT year_of_manufacture FROM price_prediction;")
-            years = cursor.fetchall()
+# ------------------- Prediction -------------------
+if submitted:
+    # Build input DataFrame — column names must match training data
+    input_data = pd.DataFrame([{
+        "transmission": transmission,
+        "model": model_code,
+        "year_of_manufacture": year,
+        "city": city,
+        "ft": ft,
+        "bt": bt,
+        "ownership": ownership,
+        "kms_driven": kms_driven,
+        "engine_type": engine_type
+    }])
 
-            cursor.execute("SELECT DISTINCT City FROM price_prediction;")
-            cities = cursor.fetchall()
+    # encodeing
+    # scaling (0-1)
 
-            cursor.close()
-            connection.close()
+    # Predict log(price), then inverse transform to actual price
+    pred = model.predict(input_data.values)
 
-            # Return the options as lists of values
-            return {
-                "transmissions": [row["transmission"] for row in transmissions],
-                "models": [row["model"] for row in models],
-                "years": [row["year_of_manufacture"] for row in years],
-                "cities": [row["City"] for row in cities]
-            }
-        except Error as e:
-            st.error(f"Failed to fetch dropdown options: {e}")
-            return None
-    return None
-
-# Insert data
-def insert_car_info(data):
-    query = """
-    INSERT INTO price_prediction(
-        transmission, model, year_of_manufacture, City, ft, bt,
-        Ownership, kms_driven, engine_type
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
-    connection = create_connection()
-    if connection:
-        try:
-            cursor = connection.cursor()
-            cursor.execute(query, tuple(data.values()))
-            connection.commit()
-            cursor.close()
-            connection.close()
-            return True
-        except Error as e:
-            st.error(f"Failed to insert data: {e}")
-            return False
-    return False
-
-# Streamlit UI
-st.title("Used Car Information Form")
-
-# Fetch available options from the database
-options = fetch_dropdown_options()
-
-if options:
-    with st.form("car_input_form"):
-        # Use options fetched from the database for the selectboxes
-        transmission = st.selectbox("Transmission (0=Manual, 1=Automatic)", options["transmissions"])
-        model = st.selectbox("Model", options["models"])
-        year = st.selectbox("Year of Manufacture", options["years"])
-        city = st.selectbox("City", options["cities"])
-        ft = st.number_input("ft (feature)", min_value=0)
-        bt = st.number_input("bt (feature)", min_value=0)
-        ownership = st.selectbox("Ownership (1=1st, 2=2nd, etc.)", [1, 2, 3, 4])
-        kms_driven = st.number_input("Kms Driven", min_value=0)
-        engine_type = st.number_input("Engine Type (numeric code)", min_value=0)
-
-        submitted = st.form_submit_button("Submit")
-
-    if submitted:
-        input_data = {
-            "transmission": transmission,
-            "model": model,
-            "year_of_manufacture": year,
-            "city": city,
-            "ft": ft,
-            "bt": bt,
-            "ownership": ownership,
-            "kms_driven": kms_driven,
-            "engine_type": engine_type
-        }
-
-        if insert_car_info(input_data):
-            st.success("Data inserted successfully!")
-            st.write("You entered:")
-            st.dataframe(pd.DataFrame([input_data]))
-        else:
-            st.error("Failed to insert data.")
-else:
-    st.error("Failed to load dropdown options from the database.")
+    # Show result
+    st.success(f"Estimated Car Price: ₹ {pred}")
