@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 
 # ------------------- Load the Trained Model -------------------
-with open("car_price_model.pkl", "rb") as f:
+with open("price_prediction.pkl", "rb") as f:
     model = pickle.load(f)
 
 # ------------------- Streamlit App UI -------------------
@@ -38,22 +38,40 @@ if submitted:
         "engine_type": engine_type
     }])
 
-    # encodeing
-    with open("label_encoders.pkl", "rb") as f:
-        encoders = pickle.load(f)
+    #rename cols as per original dataframe name
+    input_data.columns=['transmission', 'model', 'Year of Manufacture', 'City', 'ft', 'bt','Ownership', 'Kms Driven', 'Engine Type']
 
-# Your single-row input DataFrame (already constructed as `input_data`)
-    for col, le in encoders.items():
-        input_data[col] = le.transform(input_data[col].astype(str))
+    # Load saved label encoders
+    with open('label_encoders.pkl', 'rb') as f:
+        label_encoders = pickle.load(f)
 
-# Convert to array for prediction
-    input_array = input_data.to_numpy().reshape(1, -1)
+    # Apply encoders to new (or test) data
+    for col, le in label_encoders.items():
+        if col in input_data.columns:
+            input_data[col] = le.transform(input_data[col].astype(str))
 
-    
-    # scaling (0-1)
+    #artificially adding price col for min max scaler to work
+    input_data['price']=1
+    # Load the saved scaler
+    with open('minmax_scaler.pkl', 'rb') as f:
+        loaded_scaler = pickle.load(f)
+
+    # Transform new or test data
+    scaled_input_data = pd.DataFrame(loaded_scaler.transform(input_data), columns=input_data.columns)
+    scaled_input_data = scaled_input_data.drop(columns='price')
+
+    # Convert to array for prediction
+    input_array = scaled_input_data.to_numpy().reshape(1, -1)
 
     # Predict log(price), then inverse transform to actual price
-    pred = model.predict(input_data.values)
+    pred = model.predict(input_array)
 
+    scaled_input_data['price']=pred
+
+    original_input_data = pd.DataFrame(
+    loaded_scaler.inverse_transform(scaled_input_data),
+    columns=scaled_input_data.columns
+)
     # Show result
-    st.success(f"Estimated Car Price: ₹ {pred}")
+    st.success(f"Estimated Car Price: ₹ {float(original_input_data['price']):,.2f}")
+
