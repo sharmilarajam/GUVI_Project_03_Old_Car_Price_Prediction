@@ -39,6 +39,17 @@ if submitted:
     }])
 
     # encodeing
+    with open("label_encoders.pkl", "rb") as f:
+        encoders = pickle.load(f)
+
+# Your single-row input DataFrame (already constructed as `input_data`)
+    for col, le in encoders.items():
+        input_data[col] = le.transform(input_data[col].astype(str))
+
+# Convert to array for prediction
+    input_array = input_data.to_numpy().reshape(1, -1)
+
+    
     # scaling (0-1)
 
     # Predict log(price), then inverse transform to actual price
