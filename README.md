@@ -35,4 +35,4 @@ Streamlit app
 
 Documentation
 
-![App Screenshot](images/app_screenshot.png)
+![App Screenshot](p5.png)
