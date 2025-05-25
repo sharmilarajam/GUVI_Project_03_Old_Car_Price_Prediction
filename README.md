@@ -36,3 +36,4 @@ Streamlit app
 Documentation
 
 ![App Screenshot](https://github.com/sharmilarajam/GUVI_Project_03_Old_Car_Price_Prediction/blob/main/p5.jpg)
+![Streamlit App Screenshot](images/streamlit_app.png)
